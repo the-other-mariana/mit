@@ -16,6 +16,6 @@ class MyTranslator:
     def translate(self, text):
         self.translator = Translator(to_lang=self.to_lang, from_lang=self.from_lang)
         self.text = text
-        translation = translator.translate(text)
+        translation = self.translator.translate(text)
         return translation
          
