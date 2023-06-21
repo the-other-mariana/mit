@@ -1,7 +1,9 @@
 import bs4 as BeautifulSoup
 import urllib.request
+import nltk
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize, sent_tokenize
 
 
 def create_dictionary_table(text_string) -> dict:
@@ -38,6 +40,11 @@ def main():
         article_content += p.text
 
     print(article_content)
+
+    nltk.download('stopwords')
+    nltk.download('punkt')
+    ft = create_dictionary_table(article_content)
+    print(ft)
 
 if __name__ == "__main__":
     main()
