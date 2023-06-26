@@ -26,6 +26,7 @@ def create_dictionary_table(text_string) -> dict:
 
 def calculate_sentence_scores(sentences, frequency_table) -> dict:
     # algorithm for scoring a sentence by its words
+    # to avoid the whole sentence being the dict key, the key is just the 1st 7 chars of each sentence
     sentence_weight = dict()
     for sentence in sentences:
         sentence_wordcount = (len(word_tokenize(sentence)))
@@ -38,7 +39,15 @@ def calculate_sentence_scores(sentences, frequency_table) -> dict:
                 else:
                     sentence_weight[sentence[:7]] = frequency_table[word_weight]
         sentence_weight[sentence[:7]] = sentence_weight[sentence[:7]] / sentence_wordcount_without_stop_words
-    return sentence_weight            
+    return sentence_weight
+
+def calculate_avg_score(sentence_weights) -> int:
+    # avg score for the sentences, to avoid choosing sentences with score < avg score for the summary
+    sum_values = 0
+    for weight in sentence_weights:
+        sum_values += sentence_weights[weight]
+    avg_score = (sum_values / len(sentence_weights))
+    return avg_score
 
 def main():
     # get a random wiki article
@@ -62,6 +71,9 @@ def main():
     sentences = sent_tokenize(article_content)
     sw = calculate_sentence_scores(sentences, ft)
     print(sw)
+
+    avg_score = calculate_avg_score(sw)
+    print("avg score: ", avg_score)
 
 
 if __name__ == "__main__":
