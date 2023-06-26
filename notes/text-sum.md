@@ -1,4 +1,4 @@
-# Text Summarization Using Machine Learning
+# Text Summarizing
 
 Types of text summarization:
 
