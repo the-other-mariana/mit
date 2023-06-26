@@ -18,10 +18,10 @@ class ExtractionSummary:
         summary = self.extract(sentences, sw, avg_score)
         return summary
 
-    def create_dictionary_table(self) -> dict:
+    def create_dictionary_table(self, text) -> dict:
         # removing stop words 
         stop_words = set(stopwords.words("english"))
-        words = word_tokenize(self.source_text)
+        words = word_tokenize(text)
         # reducing words to their root form
         stem = PorterStemmer()
         # creating dictionary for the word frequency table
@@ -90,6 +90,7 @@ def main():
     nltk.download('stopwords')
     nltk.download('punkt')
     
+    # summarize the article text
     extraction_summary = ExtractionSummary(article_content)
     summary = extraction_summary.summarize()
 
