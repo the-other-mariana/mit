@@ -49,6 +49,17 @@ def calculate_avg_score(sentence_weights) -> int:
     avg_score = (sum_values / len(sentence_weights))
     return avg_score
 
+def summarize(sentences, sentence_weights, threshold):
+    sentence_counter = 0
+    summary = ''
+    for sentence in sentences:
+        key = sentence[:7]
+        if key in sentence_weights and sentence_weights[key] >= threshold:
+            summary += " " + sentence
+            sentence_counter += 1
+    return summary
+
+
 def main():
     # get a random wiki article
     fetched_data = urllib.request.urlopen('https://en.wikipedia.org/wiki/20th_century')
@@ -70,10 +81,12 @@ def main():
 
     sentences = sent_tokenize(article_content)
     sw = calculate_sentence_scores(sentences, ft)
-    print(sw)
 
     avg_score = calculate_avg_score(sw)
-    print("avg score: ", avg_score)
+
+    summary = summarize(sentences, sw, avg_score)
+    print("Summary:")
+    print(summary)
 
 
 if __name__ == "__main__":
