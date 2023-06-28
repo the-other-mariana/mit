@@ -16,6 +16,8 @@ Advanced deep learning techniques are applied to paraphrase and shorten the orig
 
 How to perform text summarization?
 
+- Extraction-based summarizing
+
 Here's a sample text:
 
 > “Peter and Elizabeth took a taxi to attend the night party in the city. While in the party, Elizabeth collapsed and was rushed to the hospital. Since she was diagnosed with a brain injury, the doctor told Peter to stay besides her until she gets well. Therefore, Peter stayed with her at the hospital for 3 days without leaving.”
@@ -89,6 +91,40 @@ From the sum of the weighted frequencies of the words, we can deduce that the fi
 
 Furthermore, if the first sentence is combined with the third sentence, which is the second-most weighty sentence in the paragraph, a better summary can be generated.
 
+- Abstraction-based summarizing
+
+Text summarization in NLP is treated as a **supervised machine learning** problem. Here's the basic pipeline:
+
+1. Introduce a method to extract the merited keyphrases from the source document. For example, you can use **part-of-speech tagging, words sequences, or other** linguistic patterns to identify the keyphrases.
+
+2. Gather text documents with positively-labeled keyphrases. The keyphrases should be compatible to the stipulated extraction technique. To increase accuracy, you can also create negatively-labeled keyphrases.
+
+3. Train a binary machine learning classifier to make the text summarization. Some of the features you can use include:
+
+    - Length of the keyphrase
+
+    - Frequency of the keyphrase
+
+    - The most recurring word in the keyphrase
+
+    - Number of characters in the keyphrase
+
+4. Finally, in the test phrase, create all the keyphrase words and sentences and carry out classification of them.
+
+Alexander et al. proposes an **attention-based encoder-decoder method**, which has been used in **sequence to sequence** models where the decoder extracts information from the encoder based on the attention scores on the source-side information.
+
+However, the summary can suffer from repetition and semantic irrelevance with the attention transformer architecture. Junyang Lin et al. propose to implement a gated unit on top of the encoder outputs at each time step, which is a **CNN that convolves all the encoder outputs**, in order to tackle this problem.
+
+Therefore, let's implement the attention sequence architecture and then implement the CNN for convolving the outputs.
+
+### Attention and Transformer Models
+
+The Transformer in NLP is a novel architecture that aims to solve sequence-to-sequence tasks. The Transformer was proposed in the paper Attention Is All You Need by Google Research team.
+
 ## Handy Links
 
 - https://blog.floydhub.com/gentle-introduction-to-text-summarization-in-machine-learning/
+
+- https://medium.com/swlh/abstractive-text-summarization-using-transformers-3e774cc42453
+
+- https://blog.jaysinha.me/train-your-first-neural-network-with-attention-for-abstractive-summarisation/
