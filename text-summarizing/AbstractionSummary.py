@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np 
+import time
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import tensorflow_addons as tfa
@@ -43,7 +44,7 @@ def positional_encoding(position, d_model):
 
 def create_padding_mask(seq):
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
-    req[:, tf.newaxis, tf.newaxis, :]
+    return seq[:, tf.newaxis, tf.newaxis, :]
 
 # look ahead mask is responsible for ignoring the words that occur after a given current word
 # in the target sequence
@@ -179,7 +180,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
         return out3, attn_weights_block1, attn_weights_block2
 
-class Encoder(tf.keras.Model):
+class Encoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1):
         super(Encoder, self).__init__()
 
@@ -208,7 +209,7 @@ class Encoder(tf.keras.Model):
         return x
 
 
-class Decoder(tf.keras.Model):
+class Decoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1):
         super(Decoder, self).__init__()
 
@@ -244,11 +245,10 @@ class Transformer(tf.keras.Model):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target, rate=0.1):
         super(Transformer, self).__init__()
 
-        # creates an encoder
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
-        # creates the decoder
+
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
-    
+
         self.final_layer = tf.keras.layers.Dense(target_vocab_size)
     
     def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
@@ -265,45 +265,24 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
         super(CustomSchedule, self).__init__()
 
-        self.d_model = d_model
-        self.d_model = tf.cast(self.d_model, tf.float32)
-
+        self.d_model = tf.cast(d_model, tf.float32)
         self.warmup_steps = tf.cast(warmup_steps, tf.float32)
-    
+
     def __call__(self, step):
-        step = tf.cast(step, tf.float32)
+        step = tf.cast(step, tf.float32)  # Cast `step` to float
         arg1 = tf.math.rsqrt(step)
         arg2 = step * (self.warmup_steps ** -1.5)
 
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
-def create_padding_mask(seq):
-    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
-    # Add extra dimensions to add the padding to the attention logits.
-    return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, 1, seq_len)
-
-
-def create_look_ahead_mask(size):
-    mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
-    return mask  # (seq_len, seq_len)
-
-def create_masks(inp, tar):
-    enc_padding_mask = create_padding_mask(inp)
-    dec_padding_mask = create_padding_mask(inp)
-    look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[1])
-    dec_target_padding_mask = create_padding_mask(tar)
-    combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-    
-    return enc_padding_mask, combined_mask, dec_padding_mask
-
 def main():
-    url = 'dataset/inshorts-clean-data.csv'
-    news = pd.read_csv(url, header=0)
+    url = 'dataset/news.xlsx'
+    news = pd.read_excel(url)
 
     # preprocessing
-    news = news[["Headline", "Short"]]
-    document = news[["Short"]]
-    summary = news[["Headline"]]
+    news.drop(['Source ', 'Time ', 'Publish Date'], axis=1, inplace=True)
+    document = news["Short"]
+    summary = news["Headline"]
     print(document.iloc[30])
     print(summary.iloc[30])
     # for recognizing the start and end of target sequences, we pad them with "<go>" and "<stop>"
@@ -329,12 +308,39 @@ def main():
     inputs = tf.keras.preprocessing.sequence.pad_sequences(inputs, maxlen=encoder_maxlen, padding='post', truncating='post')
     targets = tf.keras.preprocessing.sequence.pad_sequences(targets, maxlen=decoder_maxlen, padding='post', truncating='post')
 
+    inputs = tf.cast(inputs, dtype=tf.int32)
+    targets = tf.cast(targets, dtype=tf.int32)
+
     print(inputs)
     print(targets)
 
     # use ts dataset api for faster computations (since df is now a tensor)
     dataset = tf.data.Dataset.from_tensor_slices((inputs, targets)).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     print(dataset)
+
+    # Create a custom learning rate schedule
+    learning_rate = CustomSchedule(d_model)
+    # Plot the learning rate schedule
+    plt.plot(learning_rate(tf.range(40000, dtype=tf.float32)))
+    plt.xlabel('Step')
+    plt.ylabel('Learning Rate')
+    plt.title('Learning Rate Schedule')
+    plt.show()
+    # Initialize the optimizer
+    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+    # Initialize the loss function
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+
+    def loss_function(real, pred):
+        mask = tf.math.logical_not(tf.math.equal(real, 0))
+        loss_ = loss_object(real, pred)
+
+        mask = tf.cast(mask, dtype=loss_.dtype)
+        loss_ *= mask
+
+        return tf.reduce_sum(loss_)/tf.reduce_sum(mask)
+    # Initialize the metric for evaluation
+    train_loss = tf.keras.metrics.Mean(name='train_loss')
 
     # instantiate the model with the params and configs
     transformer = Transformer(
@@ -348,57 +354,60 @@ def main():
     pe_target=decoder_vocab_size,
     )
 
-    # Create a custom learning rate schedule
-    learning_rate = CustomSchedule(d_model)
-    # Plot the learning rate schedule
-    plt.plot(learning_rate(tf.range(40000, dtype=tf.float32)))
-    plt.xlabel('Step')
-    plt.ylabel('Learning Rate')
-    plt.title('Learning Rate Schedule')
-    plt.show()
-    # Initialize the optimizer
-    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-    # Initialize the loss function
-    loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
-    # Initialize the metric for evaluation
-    accuracy_metric = tf.keras.metrics.SparseCategoricalAccuracy()
+    def create_masks(inp, tar):
+        enc_padding_mask = create_padding_mask(inp)
+        dec_padding_mask = create_padding_mask(inp)
 
-    # Training loop
+        look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[1])
+        dec_target_padding_mask = create_padding_mask(tar)
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+    
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+
+    @tf.function
+    def train_step(inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
+
+        with tf.GradientTape() as tape:
+            predictions, _ = transformer(
+                inp, tar_inp, 
+                True, 
+                enc_padding_mask, 
+                combined_mask, 
+                dec_padding_mask
+            )
+            loss = loss_function(tar_real, predictions)
+
+        gradients = tape.gradient(loss, transformer.trainable_variables)    
+        optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
+
+        train_loss(loss)
+
     for epoch in range(EPOCHS):
-        total_loss = 0.0
+        start = time.time()
 
+        train_loss.reset_states()
+    
         for (batch, (inp, tar)) in enumerate(dataset):
-            # Create padding masks
-            enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar)
+            train_step(inp, tar)
+        
+            # 55k samples
+            # we display 3 batch results -- 0th, middle and last one (approx)
+            # 55k / 64 ~ 858; 858 / 2 = 429
+            if batch % 429 == 0:
+                print ('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1, batch, train_loss.result()))
+        
+        if (epoch + 1) % 5 == 0:
+            ckpt_save_path = ckpt_manager.save()
+            print ('Saving checkpoint for epoch {} at {}'.format(epoch+1, ckpt_save_path))
+        
+        print ('Epoch {} Loss {:.4f}'.format(epoch + 1, train_loss.result()))
 
-            with tf.GradientTape() as tape:
-                # Forward pass
-                predictions, _ = transformer(inp, tar[:, :-1], True, enc_padding_mask, combined_mask, dec_padding_mask)
-                # Shift targets one step to the right
-                shifted_targets = tar[:, 1:]
-                # Compute loss
-                loss = loss_function(shifted_targets, predictions)
-
-            # Calculate gradients and apply updates
-            gradients = tape.gradient(loss, transformer.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
-
-            # Update the total loss
-            total_loss += tf.reduce_sum(loss)
-
-            # Update the accuracy metric
-            accuracy_metric(shifted_targets, predictions)
-
-            # Print training progress every 100 batches
-            if batch % 100 == 0:
-                print(f'Epoch {epoch + 1} Batch {batch} Loss {total_loss / (batch + 1):.4f} Accuracy {accuracy_metric.result():.4f}')
-
-        # Calculate average loss and accuracy for the epoch
-        avg_loss = total_loss / (batch + 1)
-        avg_accuracy = accuracy_metric.result()
-
-        # Reset the accuracy metric for the next epoch
-        accuracy_metric.reset_states()
+        print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
 
 if __name__== "__main__":
     main()
