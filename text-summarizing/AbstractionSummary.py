@@ -276,6 +276,21 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 def main():
+
+    shape = (None, 75)  # (batch_size, feature_size)
+
+    # Define the data type of the placeholder
+    dtype = tf.int32
+
+    # Create the placeholder
+    placeholder = tf.placeholder(dtype, shape)
+    feed_dict = {
+        placeholder: input_data  # input_data should have the same shape as the placeholder
+    }   
+
+    # Execute the TensorFlow operation by passing the feed dictionary
+    output = session.run(operation, feed_dict=feed_dict)
+    
     url = 'dataset/news.xlsx'
     news = pd.read_excel(url)
 
