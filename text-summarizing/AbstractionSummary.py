@@ -11,7 +11,7 @@ num_layers = 4
 d_model = 128
 dff = 512
 num_heads = 8
-EPOCHS = 20
+EPOCHS = 10
 
 BUFFER_SIZE = 20000
 BATCH_SIZE = 64
@@ -64,6 +64,7 @@ def scaled_dot_product_attention(q, k, v, mask):
     return output, attention_weights
 
 # two layer feed forward network which is used after almost every sublayer
+# add & norm blocks join a residual connection and transforms it with a Normalization Layer
 def point_wise_feed_forward_network(d_model, dff):
     return tf.keras.Sequential([
         tf.keras.layers.Dense(dff, activation='relu'),
@@ -125,7 +126,7 @@ class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
         super(EncoderLayer, self).__init__()
 
-        # creates the layers and neurons
+        # creates the layer and neurons
         self.mha = MultiHeadAttention(d_model, num_heads)
         self.ffn = point_wise_feed_forward_network(d_model, dff)
 
@@ -190,6 +191,7 @@ class Encoder(tf.keras.layers.Layer):
         self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         self.pos_encoding = positional_encoding(maximum_position_encoding, self.d_model)
 
+        # as much self attention layers as specified
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
 
         self.dropout = tf.keras.layers.Dropout(rate)
@@ -261,6 +263,7 @@ class Transformer(tf.keras.Model):
         return final_output, attention_weights
 
 # the transformer paper also suggests training on a custom learning rate scheduler that helps faster convergence
+# determines the size of the parameters update when optimizing
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
         super(CustomSchedule, self).__init__()
@@ -274,6 +277,68 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         arg2 = step * (self.warmup_steps ** -1.5)
 
         return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+    
+def create_masks(inp, tar):
+    enc_padding_mask = create_padding_mask(inp)
+    dec_padding_mask = create_padding_mask(inp)
+
+    look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[1])
+    dec_target_padding_mask = create_padding_mask(tar)
+    combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+
+    return enc_padding_mask, combined_mask, dec_padding_mask
+
+def evaluate(input_document, document_tokenizer, summary_tokenizer):
+    input_document = document_tokenizer.texts_to_sequences([input_document])
+    input_document = tf.keras.preprocessing.sequence.pad_sequences(input_document, maxlen=encoder_maxlen, padding='post', truncating='post')
+
+    encoder_input = tf.expand_dims(input_document[0], 0)
+
+    decoder_input = [summary_tokenizer.word_index["<go>"]]
+    output = tf.expand_dims(decoder_input, 0)
+    
+    for i in range(decoder_maxlen):
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
+
+        predictions, attention_weights = transformer(
+            encoder_input, 
+            output,
+            False,
+            enc_padding_mask,
+            combined_mask,
+            dec_padding_mask
+        )
+
+        predictions = predictions[: ,-1:, :]
+        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+
+        if predicted_id == summary_tokenizer.word_index["<stop>"]:
+            return tf.squeeze(output, axis=0), attention_weights
+
+        output = tf.concat([output, predicted_id], axis=-1)
+
+    return tf.squeeze(output, axis=0), attention_weights
+
+def summarize(input_document, summary_tokenizer):
+    # not considering attention weights for now, can be used to plot attention heatmaps in the future
+    summarized = evaluate(input_document=input_document)[0].numpy()
+    summarized = np.expand_dims(summarized[1:], 0)  # not printing <go> token
+    return summary_tokenizer.sequences_to_texts(summarized)[0]  # since there is just one translated document
+
+def load_model_for_inference(export_path, new_input):
+    # load the saved model
+    loaded_model = tf.saved_model.load(export_path)
+    # Perform inference using the loaded model without retraining the whole model
+    # You can call the model on new inputs
+    # For example, assuming you have a new input sequence called `new_input`
+    predictions, _ = loaded_model(new_input, training=False)
+    # `predictions` will contain the model's predictions for the new input
+
+    # You can also access individual layers of the loaded model
+    # For example, to get the encoder layer
+    encoder = loaded_model.encoder
+    # Use the encoder layer for further processing ...
+
 
 def main():
 
@@ -321,7 +386,7 @@ def main():
 
     # Create a custom learning rate schedule
     learning_rate = CustomSchedule(d_model)
-    # Plot the learning rate schedule
+    # Plot the learning rate schedule test
     plt.plot(learning_rate(tf.range(40000, dtype=tf.float32)))
     plt.xlabel('Step')
     plt.ylabel('Learning Rate')
@@ -344,6 +409,7 @@ def main():
     train_loss = tf.keras.metrics.Mean(name='train_loss')
 
     # instantiate the model with the params and configs
+    global transformer
     transformer = Transformer(
     num_layers, 
     d_model, 
@@ -354,20 +420,9 @@ def main():
     pe_input=encoder_vocab_size, 
     pe_target=decoder_vocab_size,
     )
-    def create_masks(inp, tar):
-        enc_padding_mask = create_padding_mask(inp)
-        dec_padding_mask = create_padding_mask(inp)
-
-        look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[1])
-        dec_target_padding_mask = create_padding_mask(tar)
-        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-    
-        return enc_padding_mask, combined_mask, dec_padding_mask
     
     checkpoint_path = "checkpoints"
-
     ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
-
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
     if ckpt_manager.latest_checkpoint:
@@ -391,7 +446,8 @@ def main():
             )
             loss = loss_function(tar_real, predictions)
 
-        gradients = tape.gradient(loss, transformer.trainable_variables)    
+        gradients = tape.gradient(loss, transformer.trainable_variables)   
+        # the optimizer (adam) updates the model's trainable variables  
         optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
 
         train_loss(loss)
@@ -418,6 +474,23 @@ def main():
         print ('Epoch {} Loss {:.4f}'.format(epoch + 1, train_loss.result()))
 
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+
+    # export (save) the trained model
+    export_path = "saved_model"
+    tf.saved_model.save(transformer, export_path)
+    print("Model exported to:", export_path)
+
+    summarize(
+        "US-based private equity firm General Atlantic is in talks to invest about \
+        $850 million to $950 million in Reliance Industries' digital unit Jio \
+        Platforms, the Bloomberg reported. Saudi Arabia's $320 billion sovereign \
+        wealth fund is reportedly also exploring a potential investment in the \
+        Mukesh Ambani-led company. The 'Public Investment Fund' is looking to \
+        acquire a minority stake in Jio Platforms."
+    )
+
+    # should print something similar to: 'reliance group buys stake in net profit for 250 bn'
+
 
 if __name__== "__main__":
     main()
