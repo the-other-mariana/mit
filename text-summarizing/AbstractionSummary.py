@@ -277,20 +277,6 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 def main():
 
-    shape = (None, 75)  # (batch_size, feature_size)
-
-    # Define the data type of the placeholder
-    dtype = tf.int32
-
-    # Create the placeholder
-    placeholder = tf.placeholder(dtype, shape)
-    feed_dict = {
-        placeholder: input_data  # input_data should have the same shape as the placeholder
-    }   
-
-    # Execute the TensorFlow operation by passing the feed dictionary
-    output = session.run(operation, feed_dict=feed_dict)
-    
     url = 'dataset/news.xlsx'
     news = pd.read_excel(url)
 
@@ -368,7 +354,6 @@ def main():
     pe_input=encoder_vocab_size, 
     pe_target=decoder_vocab_size,
     )
-
     def create_masks(inp, tar):
         enc_padding_mask = create_padding_mask(inp)
         dec_padding_mask = create_padding_mask(inp)
@@ -378,7 +363,16 @@ def main():
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
     
         return enc_padding_mask, combined_mask, dec_padding_mask
+    
+    checkpoint_path = "checkpoints"
 
+    ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
+
+    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+
+    if ckpt_manager.latest_checkpoint:
+        ckpt.restore(ckpt_manager.latest_checkpoint)
+        print ('Latest checkpoint restored!!')
 
     @tf.function
     def train_step(inp, tar):
@@ -413,8 +407,9 @@ def main():
             # 55k samples
             # we display 3 batch results -- 0th, middle and last one (approx)
             # 55k / 64 ~ 858; 858 / 2 = 429
-            if batch % 429 == 0:
-                print ('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1, batch, train_loss.result()))
+            #print(batch)
+            #if batch % 429 == 0:
+            print ('Epoch {} Batch {} Loss {:.4f}'.format(epoch + 1, batch, train_loss.result()))
         
         if (epoch + 1) % 5 == 0:
             ckpt_save_path = ckpt_manager.save()
