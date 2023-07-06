@@ -319,9 +319,9 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
 
     return tf.squeeze(output, axis=0), attention_weights
 
-def summarize(input_document, summary_tokenizer):
+def summarize(input_document, document_tokenizer, summary_tokenizer):
     # not considering attention weights for now, can be used to plot attention heatmaps in the future
-    summarized = evaluate(input_document=input_document)[0].numpy()
+    summarized = evaluate(input_document, document_tokenizer, summary_tokenizer)[0].numpy()
     summarized = np.expand_dims(summarized[1:], 0)  # not printing <go> token
     return summary_tokenizer.sequences_to_texts(summarized)[0]  # since there is just one translated document
 
@@ -486,7 +486,9 @@ def main():
         Platforms, the Bloomberg reported. Saudi Arabia's $320 billion sovereign \
         wealth fund is reportedly also exploring a potential investment in the \
         Mukesh Ambani-led company. The 'Public Investment Fund' is looking to \
-        acquire a minority stake in Jio Platforms."
+        acquire a minority stake in Jio Platforms.",
+        document_tokenizer,
+        summary_tokenizer
     )
 
     print(s)
