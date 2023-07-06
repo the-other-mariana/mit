@@ -27,18 +27,21 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
     input_document = document_tokenizer.texts_to_sequences([input_document])
     input_document = tf.keras.preprocessing.sequence.pad_sequences(input_document, maxlen=encoder_maxlen, padding='post', truncating='post')
 
-    # Add one extra dimension at axis 0
-    encoder_input = tf.expand_dims(input_document, 0)
-    encoder_input = tf.squeeze(encoder_input, axis=0)
+    encoder_input = tf.expand_dims(input_document[0], 0)
+    print('enc shape:', encoder_input)
 
     decoder_input = [summary_tokenizer.word_index["<go>"]] * (decoder_maxlen - 1)
     decoder_input = tf.expand_dims(decoder_input, 0)
-    decoder_input = tf.pad(decoder_input, [[0, 0], [0, decoder_maxlen - 1 - len(decoder_input[0])]], constant_values=0)
+    print(decoder_input)
+    #decoder_input = tf.pad(decoder_input, [[0, 0], [0, decoder_maxlen - 1 - len(decoder_input[0])]], constant_values=0)
 
-    output = tf.expand_dims(decoder_input, 0)
-
+    output = decoder_input
+    print('dec shape:', output)
+    
     for i in range(decoder_maxlen):
+        print(1)
         enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
+        print(output)
 
         predictions, attention_weights = transformer(
             encoder_input, 
@@ -49,13 +52,14 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
             dec_padding_mask
         )
 
-        predictions = predictions[:, -1:, :]
+        predictions = predictions[: ,-1:, :]
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
         if predicted_id == summary_tokenizer.word_index["<stop>"]:
             return tf.squeeze(output, axis=0), attention_weights
 
-        output = tf.concat([output, predicted_id], axis=-1)
+        output = tf.concat([output[:, 1:], predicted_id], axis=-1)
+        print('predict', output)
 
     return tf.squeeze(output, axis=0), attention_weights
 
@@ -114,12 +118,8 @@ def main():
     inputs = tf.cast(inputs, dtype=tf.int32)
     targets = tf.cast(targets, dtype=tf.int32)
 
-    print(inputs)
-    print(targets)
-
     # use ts dataset api for faster computations (since df is now a tensor)
     dataset = tf.data.Dataset.from_tensor_slices((inputs, targets)).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-    print(dataset)
 
     # instantiate the model with the params and configs
     global transformer
