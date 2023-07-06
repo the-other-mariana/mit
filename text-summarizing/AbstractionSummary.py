@@ -480,7 +480,7 @@ def main():
     tf.saved_model.save(transformer, export_path)
     print("Model exported to:", export_path)
 
-    summarize(
+    s = summarize(
         "US-based private equity firm General Atlantic is in talks to invest about \
         $850 million to $950 million in Reliance Industries' digital unit Jio \
         Platforms, the Bloomberg reported. Saudi Arabia's $320 billion sovereign \
@@ -488,6 +488,8 @@ def main():
         Mukesh Ambani-led company. The 'Public Investment Fund' is looking to \
         acquire a minority stake in Jio Platforms."
     )
+
+    print(s)
 
     # should print something similar to: 'reliance group buys stake in net profit for 250 bn'
 
