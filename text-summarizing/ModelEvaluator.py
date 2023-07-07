@@ -22,6 +22,7 @@ encoder_maxlen = 400
 decoder_maxlen = 75
 
 encoder_vocab_size, decoder_vocab_size = 76362, 29661
+attention_weights_list = []
 
 def evaluate(input_document, document_tokenizer, summary_tokenizer):
     input_document = document_tokenizer.texts_to_sequences([input_document])
@@ -39,7 +40,7 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
     print('dec shape:', output)
     
     for i in range(decoder_maxlen):
-        print(1)
+        print('------')
         enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
         print(output)
 
@@ -51,9 +52,11 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
             combined_mask,
             dec_padding_mask
         )
-
+        attention_weights_list.append(attention_weights['decoder_layer4_block2'][0])
         predictions = predictions[: ,-1:, :]
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+        print('id', predicted_id)
+        print('att', attention_weights['decoder_layer4_block2'][0])
 
         if predicted_id == summary_tokenizer.word_index["<stop>"]:
             return tf.squeeze(output, axis=0), attention_weights
@@ -137,6 +140,24 @@ def main():
     )
 
     print(s)
+
+    print(attention_weights_list[0].shape)
+    for i in range(len(attention_weights_list)):
+        for h in range(num_heads):
+        
+            fig, ax = plt.subplots()
+            data = attention_weights_list[i]
+            im = ax.imshow(data[h,:62,:62], cmap='hot')
+
+            # Add labels, title, and colorbar
+            ax.set_xlabel('Encoder timestep')
+            ax.set_ylabel('Decoder timestep')
+            ax.set_title(f'Attention Heatmap - Step {i+1} Head {h+1}')
+            plt.colorbar(im)
+
+            # Save the heatmap as an image
+            plt.savefig(f'imgs/heatmap_step_{i+1}_head{h+1}.png', dpi=500)
+            plt.close()
 
 if __name__ == '__main__':
     main()
