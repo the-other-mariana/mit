@@ -158,16 +158,17 @@ def main():
     for i in range(len(attention_weights_list)):
         for h in range(num_heads):
         
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(8, 4))
             data = attention_weights_list[i]
-            im = ax.imshow(data[h,:62,:62], cmap='hot')
+            im = ax.imshow(data[h,:62,:62], cmap='hot', extent=[0, 62, 62, 0])
 
             # Add labels, title, and colorbar
-            #ax.set_xlabel('Encoder timestep')
+            ax.set_xlabel('Encoder timestep')
             #ax.set_xticks(len(word_labels))
             #ax.set_xticklabels(word_labels)
             
             ax.set_ylabel('Decoder timestep')
+            ax.set_yticks([])
             ax.set_title(f'Attention Heatmap - Step {i+1} Head {h+1}')
             plt.colorbar(im)
 
