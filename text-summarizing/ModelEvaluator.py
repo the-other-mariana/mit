@@ -14,7 +14,7 @@ num_layers = 4
 d_model = 128
 dff = 512
 num_heads = 8
-EPOCHS = 10
+EPOCHS = 20
 
 BUFFER_SIZE = 20000
 BATCH_SIZE = 64
@@ -33,7 +33,8 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
     encoder_input = tf.expand_dims(input_document[0], 0)
     print('enc shape:', encoder_input)
 
-    decoder_input = [summary_tokenizer.word_index["<go>"]] * (decoder_maxlen - 1)
+    #decoder_input = [summary_tokenizer.word_index["<go>"]] * (decoder_maxlen - 1)
+    decoder_input = [0] * (decoder_maxlen - 2) + [summary_tokenizer.word_index["<go>"]]
     decoder_input = tf.expand_dims(decoder_input, 0)
     print(decoder_input)
     #decoder_input = tf.pad(decoder_input, [[0, 0], [0, decoder_maxlen - 1 - len(decoder_input[0])]], constant_values=0)
@@ -69,7 +70,9 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
         if predicted_id == summary_tokenizer.word_index["<stop>"]:
             return tf.squeeze(output, axis=0), attention_weights
 
-        output = tf.concat([output[:, 1:], predicted_id], axis=-1)
+        output = output[:, -73:]
+        output = tf.concat([output, predicted_id], axis=-1)
+        #output = tf.concat([output[:, 1:], predicted_id], axis=-1)
         print('predict', output)
 
     return tf.squeeze(output, axis=0), attention_weights

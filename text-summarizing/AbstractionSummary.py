@@ -14,7 +14,8 @@ num_heads = 8
 EPOCHS = 10
 
 BUFFER_SIZE = 20000
-BATCH_SIZE = 64
+#BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 encoder_maxlen = 400
 decoder_maxlen = 75
@@ -476,22 +477,9 @@ def main():
         print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
 
     # export (save) the trained model
-    export_path = "saved_model"
+    export_path = "saved_model_2"
     tf.saved_model.save(transformer, export_path)
     print("Model exported to:", export_path)
-
-    s = summarize(
-        "US-based private equity firm General Atlantic is in talks to invest about \
-        $850 million to $950 million in Reliance Industries' digital unit Jio \
-        Platforms, the Bloomberg reported. Saudi Arabia's $320 billion sovereign \
-        wealth fund is reportedly also exploring a potential investment in the \
-        Mukesh Ambani-led company. The 'Public Investment Fund' is looking to \
-        acquire a minority stake in Jio Platforms.",
-        document_tokenizer,
-        summary_tokenizer
-    )
-
-    print(s)
 
     # should print something similar to: 'reliance group buys stake in net profit for 250 bn'
 
