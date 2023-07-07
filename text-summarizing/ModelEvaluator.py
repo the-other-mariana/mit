@@ -5,6 +5,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
+import seaborn as sns
 
 from AbstractionSummary import create_masks
 
@@ -23,6 +24,7 @@ decoder_maxlen = 75
 
 encoder_vocab_size, decoder_vocab_size = 76362, 29661
 attention_weights_list = []
+probabilities_list = []
 
 def evaluate(input_document, document_tokenizer, summary_tokenizer):
     input_document = document_tokenizer.texts_to_sequences([input_document])
@@ -52,9 +54,15 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
             combined_mask,
             dec_padding_mask
         )
+
         attention_weights_list.append(attention_weights['decoder_layer4_block2'][0])
+        step_probabilities = predictions[:, i, :]
+        print('PROB', step_probabilities)
+        probabilities_list.append(step_probabilities)
+
         predictions = predictions[: ,-1:, :]
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+
         print('id', predicted_id)
         print('att', attention_weights['decoder_layer4_block2'][0])
 
@@ -142,6 +150,8 @@ def main():
     print(s)
 
     print(attention_weights_list[0].shape)
+    word_labels = summary_tokenizer.index_word.values()
+    num_words = len(document_tokenizer.index_word)
     for i in range(len(attention_weights_list)):
         for h in range(num_heads):
         
@@ -150,7 +160,10 @@ def main():
             im = ax.imshow(data[h,:62,:62], cmap='hot')
 
             # Add labels, title, and colorbar
-            ax.set_xlabel('Encoder timestep')
+            #ax.set_xlabel('Encoder timestep')
+            #ax.set_xticks(len(word_labels))
+            #ax.set_xticklabels(word_labels)
+            
             ax.set_ylabel('Decoder timestep')
             ax.set_title(f'Attention Heatmap - Step {i+1} Head {h+1}')
             plt.colorbar(im)
@@ -158,6 +171,19 @@ def main():
             # Save the heatmap as an image
             plt.savefig(f'imgs/heatmap_step_{i+1}_head{h+1}.png', dpi=500)
             plt.close()
+
+    for i in range(len(probabilities_list)):
+        # Plot the heatmap
+        step_probabilities = probabilities_list[i]
+        plt.figure()
+        ax = sns.heatmap(step_probabilities.numpy().reshape(-1, 1), cmap='Blues', annot=False, cbar=False, yticklabels=False)
+        #ax.set_xticks(np.arange(num_words))
+        #ax.set_xticklabels(document_tokenizer.index_word.values(), rotation=90)
+        plt.title(f'Step {i+1} Probabilities Heatmap')
+        plt.xlabel('Word')
+        plt.ylabel('Batch')
+        plt.savefig(f'imgs/prob_heatmap_step_{i+1}_head{h+1}.png', dpi=500)
+        plt.close()
 
 if __name__ == '__main__':
     main()
