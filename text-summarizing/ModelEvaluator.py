@@ -7,6 +7,7 @@ import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 import seaborn as sns
 import random
+from GridPlot import GridPlot
 
 from AbstractionSummary import create_masks
 
@@ -162,6 +163,8 @@ def main():
 
     submatrix_size = 10
 
+    gp = GridPlot(len(attention_weights_list), num_heads, 'imgs/', (30, 15))
+
     for i in range(len(attention_weights_list)):
         for h in range(num_heads):
         
@@ -210,6 +213,12 @@ def main():
             plt.tight_layout()
             plt.savefig(f'imgs/heatmap_step_{i+1}_head{h+1}.png', dpi=500)
             plt.close()
+
+            gp.plot_cell(i, h, submatrix, 
+                         highlight_matrix, True, 'gray', f'Step {i+1} Head {h+1}',
+                         'Encoder Timestep', 'Decoder Timestep', x_labels,
+                         y_labels, True)
+    gp.save_plot('heatmaps.png')
 
     for i in range(len(probabilities_list)):
         # Plot the heatmap
