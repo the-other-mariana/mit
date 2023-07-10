@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 import seaborn as sns
+import random
 
 from AbstractionSummary import create_masks
 
@@ -34,7 +35,9 @@ def evaluate(input_document, document_tokenizer, summary_tokenizer):
     print('enc shape:', encoder_input)
 
     #decoder_input = [summary_tokenizer.word_index["<go>"]] * (decoder_maxlen - 1)
-    decoder_input = [0] * (decoder_maxlen - 2) + [summary_tokenizer.word_index["<go>"]]
+    #decoder_input = [0] * (decoder_maxlen - 2) + [summary_tokenizer.word_index["<go>"]]
+    decoder_input = [summary_tokenizer.word_index["<go>"]] + [0] * (decoder_maxlen - 2)
+
     decoder_input = tf.expand_dims(decoder_input, 0)
     print(decoder_input)
     #decoder_input = tf.pad(decoder_input, [[0, 0], [0, decoder_maxlen - 1 - len(decoder_input[0])]], constant_values=0)
@@ -153,26 +156,58 @@ def main():
     print(s)
 
     print(attention_weights_list[0].shape)
-    word_labels = summary_tokenizer.index_word.values()
-    num_words = len(document_tokenizer.index_word)
+
+    word_labels_encoder = list(document_tokenizer.index_word.values())
+    word_labels_decoder = list(summary_tokenizer.index_word.values())
+
+    submatrix_size = 10
+
     for i in range(len(attention_weights_list)):
         for h in range(num_heads):
         
             fig, ax = plt.subplots(figsize=(8, 4))
             data = attention_weights_list[i]
-            im = ax.imshow(data[h,:62,:62], cmap='hot', extent=[0, 62, 62, 0])
+            #im = ax.imshow(data[h,:62,:62], cmap='hot', extent=[0, 62, 62, 0])
 
+            data = data[h,:62,:62]
+
+            max_attention_index = np.argmax(data, axis=1)
+            timestep = h
+            word_index = max_attention_index[timestep]
+            word = summary_tokenizer.index_word[word_index]
+
+            ## random stuff
+            num_rows, num_cols = data.shape[0], data.shape[1]
+            chosen_position = np.unravel_index(word_index, (num_rows, num_cols))
+            
+            
+            start_row = max(chosen_position[0] - submatrix_size // 2, 0)
+            end_row = min(start_row + submatrix_size, num_rows)
+            start_col = max(chosen_position[1] - submatrix_size // 2, 0)
+            end_col = min(start_col + submatrix_size, num_cols)
+            submatrix = data[start_row:end_row, start_col:end_col]
+            max_position = np.unravel_index(np.argmax(submatrix), submatrix.shape)
+            highlight_matrix = np.zeros((submatrix_size, submatrix_size))
+            highlight_matrix[max_position] = 1
+
+            x_labels = [summary_tokenizer.index_word[start_col+k] if k != 0 else '<unk>' for k in range(submatrix_size)]
+            y_labels = [summary_tokenizer.index_word[start_row+k] if k != 0 else '<unk>' for k in range(submatrix_size)]
+
+            im = ax.imshow(submatrix, cmap='gray')
+            ax.imshow(highlight_matrix, cmap='cool', alpha=0.3)
+            plt.colorbar(im)
+            ax.set_xticks(range(submatrix_size), labels=x_labels, rotation=90)
+            ax.set_yticks(range(submatrix_size), labels=y_labels)
             # Add labels, title, and colorbar
             ax.set_xlabel('Encoder timestep')
             #ax.set_xticks(len(word_labels))
             #ax.set_xticklabels(word_labels)
             
             ax.set_ylabel('Decoder timestep')
-            ax.set_yticks([])
             ax.set_title(f'Attention Heatmap - Step {i+1} Head {h+1}')
-            plt.colorbar(im)
 
             # Save the heatmap as an image
+            plt.tight_layout()
             plt.savefig(f'imgs/heatmap_step_{i+1}_head{h+1}.png', dpi=500)
             plt.close()
 
