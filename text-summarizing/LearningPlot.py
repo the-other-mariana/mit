@@ -43,10 +43,24 @@ class LearningPlot:
             else:
                 print('[PROMPT] Ignored line')
 
+    def plot_metrics(self):
+        set_epochs = set(self.metric_data[self.EPOCH])
+        epochs = list(set_epochs)
+        data_per_epoch = [[] for _ in epochs]
+        for i in range(len(self.metric_data[self.LOSS])):
+            data_per_epoch[self.metric_data[self.EPOCH][i]-1].append(self.metric_data[self.LOSS][i])
+
+        xs = list(np.linspace(0, 1000, len(self.metric_data[self.LOSS]), endpoint=True))
+        plt.plot(xs, self.metric_data[self.LOSS])
+        plt.show()
+
+        
+
 
 def main():
     lp = LearningPlot('training_output_5.txt')
     lp.store_data()
+    lp.plot_metrics()
 
 if __name__ == '__main__':
     main()
