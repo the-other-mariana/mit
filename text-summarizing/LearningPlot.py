@@ -49,8 +49,8 @@ class LearningPlot:
                 print('[PROMPT] Ignored line')
 
     def plot_metrics(self):
-        plt.rcParams['text.usetex'] = True
-        plt.rcParams['font.family'] = 'serif'
+        plt.rc('text', usetex=True)
+        plt.rc('font', family='serif')
         set_epochs = set(self.metric_data[self.EPOCH])
         epochs = list(set_epochs)
         data_per_epoch = [[] for _ in epochs]
@@ -60,14 +60,19 @@ class LearningPlot:
         xs = list(np.linspace(0, 1000, len(self.metric_data[self.LOSS]), endpoint=True))
         line_height = max(self.metric_data[self.LOSS])
         line_start = min(self.metric_data[self.LOSS])
+        xticks = []
 
         epoch_lines.append([[min(xs), min(xs)], [line_start-line_start*0.05, line_height+line_height*0.05]])
+        xticks.append(min(xs))
         for i in range(len(self.metric_data[self.LOSS])):
             data_per_epoch[self.metric_data[self.EPOCH][i]-1].append(self.metric_data[self.LOSS][i])
             if last_index != (self.metric_data[self.EPOCH][i]-1):
                 last_index = self.metric_data[self.EPOCH][i]-1
                 epoch_lines.append([[xs[i], xs[i]], [line_start-line_start*0.05, line_height+line_height*0.05]])
+                xticks.append(xs[i])
         epoch_lines.append([[max(xs), max(xs)], [line_start-line_start*0.05, line_height+line_height*0.05]])
+        mid_xticks = [(xticks[i] + xticks[i+1]) * 0.5 for i in range(len(xticks)-1)]
+        mid_xticks.append(abs(xticks[-1] - xticks[-2]) + mid_xticks[-1])
 
         for e in range(len(epoch_lines)):
             self.ax_metric.plot(epoch_lines[e][0], epoch_lines[e][1], color='red', linestyle='--', linewidth=0.8)
@@ -79,12 +84,12 @@ class LearningPlot:
         self.ax_metric.set_title(r'Loss Across Epochs')
 
         xlabels = [f'Epoch {i}' for i in epochs]
-        self.ax_metric.set_xticks(list(np.linspace(min(xs), max(xs), len(epochs))))
+        self.ax_metric.set_xticks(mid_xticks)
         self.ax_metric.set_xticklabels(xlabels)
 
         # time plot
         xs = list(range(len(epochs)))
-        self.ax_time.plot(xs, np.array(self.time_data[self.TIME]) / 60.0, color='darkred')
+        self.ax_time.plot(xs, np.array(self.time_data[self.TIME]) / 60.0, color='darkred', marker='o')
         self.ax_time.set_xlabel(r'Epochs')
         self.ax_time.set_ylabel(r'Time (Min)')
         self.ax_time.set_title(r'Time per Epoch')
