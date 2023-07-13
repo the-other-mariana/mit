@@ -49,8 +49,7 @@ class LearningPlot:
                 print('[PROMPT] Ignored line')
 
     def plot_metrics(self):
-        plt.rc('text', usetex=True)
-        plt.rc('font', family='serif')
+        self.store_data()
         set_epochs = set(self.metric_data[self.EPOCH])
         epochs = list(set_epochs)
         data_per_epoch = [[] for _ in epochs]
@@ -99,18 +98,18 @@ class LearningPlot:
         ylabels = list(np.linspace(min(np.array(self.time_data[self.TIME]) / 60.0), max(np.array(self.time_data[self.TIME]) / 60.0), 5))
         self.ax_time.set_yticks(ylabels)
         self.ax_time.set_yticklabels([f'{y:.1f}' for y in ylabels])
+        self.ax_time.grid(True, linestyle='--')
         
 
         self.figure.tight_layout()
         plt.savefig(f'learning-plot.png', dpi=500)
         plt.show()
 
-        
-
-
+# sample usage
 def main():
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
     lp = LearningPlot('training_output_5.txt')
-    lp.store_data()
     lp.plot_metrics()
 
 if __name__ == '__main__':
