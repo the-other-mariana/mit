@@ -1,6 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+# this class takes as input a file with the following format:
+# [epoch] [integer] [a-z]*[A-Z]* [loss] [float] (same line)
+# [time] [a-z]*[A-Z]*[0-9]* [float] (in seconds)
+# anything else gets ignored
+# and outputs a plot image with the loss and time taken
+
 class LearningPlot:
     def __init__(self, filename, size=(10, 6)) -> None:
         self.file = open(filename, 'r')
@@ -17,6 +23,7 @@ class LearningPlot:
         self.LOSS = 'loss'
         self.TIME = 'time'
 
+    # checks whether a string is a float
     def is_float(self, string):
         try:
             float_value = float(string)
@@ -24,6 +31,7 @@ class LearningPlot:
         except ValueError:
             return False
     
+    # reads the file and stores it in dicts
     def store_data(self):
         lines = self.file.readlines()
         self.metric_data[self.EPOCH] = []
@@ -48,6 +56,7 @@ class LearningPlot:
             else:
                 print('[PROMPT] Ignored line')
 
+    # plots for time and loss
     def plot_metrics(self):
         self.store_data()
         set_epochs = set(self.metric_data[self.EPOCH])
